@@ -36,6 +36,42 @@ GoVideo 是一个基于 Gin + Gorm 的短视频 Feed 流后端系统，支持用
 
 ## 架构概览
 
+```mermaid
+flowchart LR
+    client["客户端 / Vue 调试页面"]
+    subgraph api["API 进程（可多实例）"]
+        http["Gin HTTP 接口<br/>JWT 鉴权 · 限流"]
+        biz["业务模块<br/>用户 · 视频 · Feed · 互动 · 消息"]
+        notif["通知消费者 · SSE Hub"]
+        http --> biz
+    end
+    subgraph workers["Worker 进程（可多实例）"]
+        consumer["互动、热度和时间线消费者"]
+        outbox["Outbox 扫描与投递"]
+    end
+    mysql[("MySQL<br/>业务数据 · 通知 · Outbox")]
+    redis[("Redis<br/>缓存 · 限流 · 时间线 · Pub/Sub")]
+    mq["RabbitMQ<br/>异步事件"]
+    cos["腾讯云 COS<br/>视频 · 封面 · 头像"]
+
+    client -->|HTTP| http
+    notif -->|SSE 推送| client
+    biz <-->|读写| mysql
+    biz <-->|缓存和限流| redis
+    biz -->|上传文件| cos
+    biz -->|互动和热度事件| mq
+    mysql -->|扫描 Outbox| outbox
+    outbox -->|投递时间线事件| mq
+    mq -->|消费事件| consumer
+    consumer -->|更新业务数据| mysql
+    consumer -->|更新热度和时间线| redis
+    mq -->|消费通知事件| notif
+    notif -->|保存通知| mysql
+    notif <-->|发布 / 订阅推送| redis
+```
+
+通知消费者和 Redis 订阅协程在 API 进程中启动；其他后台消费者和 Outbox 扫描在独立的 worker 进程中运行。图中省略了部分中间件不可用时的降级路径，详见[分布式部署与降级说明](docs/distributed-deployment.md)。
+
 推荐按 API 进程和 worker 进程拆分部署：
 
 ```text
