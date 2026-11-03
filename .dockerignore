@@ -1,0 +1,26 @@
+.git
+.gitignore
+.idea
+.vscode
+
+# 本地运行产物
+.cache
+.run
+*.exe
+*.log
+
+# 前端单独构建，不进入后端镜像构建上下文
+web
+
+# 文档、测试与压测脚本不参与镜像构建
+docs
+scripts
+tests
+
+# 本地配置文件可能包含真实密钥，绝不打包进镜像
+configs/config-dev.yaml
+configs/config.yaml
+configs/config-integration.yaml
+
+.env
+.env.*

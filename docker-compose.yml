@@ -1,0 +1,166 @@
+# GoVideo 全栈一键运行：MySQL + Redis + RabbitMQ + API + Worker + 前端
+#
+# 启动（首次会构建镜像）:
+#   docker compose up -d --build
+# 暂停（容器和数据都保留，可随时恢复）:
+#   docker compose stop
+# 继续运行:
+#   docker compose start
+# 查看状态 / 日志:
+#   docker compose ps
+#   docker compose logs -f api worker
+# 停止并删除容器（数据卷保留）:
+#   docker compose down
+# 连同数据一起清理:
+#   docker compose down -v
+
+name: govideo
+
+# API 和 worker 共用同一个镜像与配置，仅在 command 上不同
+x-go-app: &go-app
+  image: govideo-app:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment:
+    TZ: Asia/Shanghai
+    CONFIG_PATH: configs/config-docker.yaml
+    # 以下变量会覆盖 configs/config-docker.yaml 中的同名配置
+    MYSQL_HOST: mysql
+    MYSQL_PORT: "3306"
+    MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-govideo-local}
+    MYSQL_DATABASE: ${MYSQL_DATABASE:-go_video}
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    RABBITMQ_HOST: rabbitmq
+    RABBITMQ_PORT: "5672"
+    RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+    RABBITMQ_PASS: ${RABBITMQ_PASSWORD:-guest}
+    JWT_SECRET: ${JWT_SECRET:-govideo-docker-dev-secret-change-me}
+    # 留空则不覆盖配置文件，OSS 上传功能关闭
+    OSS_ENDPOINT: ${OSS_ENDPOINT:-}
+    OSS_REGION: ${OSS_REGION:-}
+    OSS_BUCKET: ${OSS_BUCKET:-}
+    OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+    OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+    OSS_PUBLIC_BASE_URL: ${OSS_PUBLIC_BASE_URL:-}
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: govideo-mysql
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-govideo-local}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-go_video}
+      TZ: Asia/Shanghai
+    ports:
+      # 仅绑定本机，避免数据库直接暴露到局域网
+      - "127.0.0.1:${MYSQL_HOST_PORT:-13306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8.2-alpine
+    container_name: govideo-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-16379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4.2-management-alpine
+    container_name: govideo-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${RABBITMQ_HOST_PORT:-25672}:5672"
+      # 管理后台: http://localhost:25673
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-25673}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  api:
+    <<: *go-app
+    container_name: govideo-api
+    command: ["/app/api"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+      - "127.0.0.1:${PPROF_API_PORT:-6060}:6060"
+    volumes:
+      - ./configs/config-docker.yaml:/app/configs/config-docker.yaml:ro
+      # 上传 OSS 前的临时落盘目录
+      - uploads:/app/.run/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8080 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  worker:
+    <<: *go-app
+    container_name: govideo-worker
+    command: ["/app/worker"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${PPROF_WORKER_PORT:-6061}:6061"
+    volumes:
+      - ./configs/config-docker.yaml:/app/configs/config-docker.yaml:ro
+
+  web:
+    image: govideo-web:latest
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: govideo-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # 前端入口: http://localhost:8081
+      - "${WEB_PORT:-8081}:80"
+
+volumes:
+  mysql-data:
+  redis-data:
+  rabbitmq-data:
+  uploads:

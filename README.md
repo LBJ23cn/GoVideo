@@ -119,7 +119,9 @@ internal/worker/*            后台 worker
 internal/middleware/*        Redis/RabbitMQ/JWT/OSS/限流封装
 internal/db                  数据库连接与建表
 configs                      配置文件
-deploy                       Docker Compose 等部署辅助文件
+docker-compose.yml           一键启动全栈（MySQL/Redis/RabbitMQ/API/Worker/前端）
+Dockerfile                   后端镜像（API 与 worker 共用）
+deploy                       集成测试等部署辅助文件
 tests/integration            集成测试
 tests/performance            k6 性能测试脚本
 scripts                      测试启动脚本
@@ -135,6 +137,61 @@ web                          前端调试页面
 - [性能测试说明](docs/performance-test.md)：说明 k6 压测范围、脚本参数和输出结果。
 - [项目保姆级复习手册](docs/baby-guide.md)：详细解释项目核心链路、设计取舍和面试追问点。
 - [面试 QA 复习稿](docs/interview-QA.md)：按问答形式整理 Feed、缓存、MQ、Outbox、幂等、SSE、压测等高频问题。
+
+## Docker 一键运行
+
+根目录的 [docker-compose.yml](docker-compose.yml) 会把 MySQL、Redis、RabbitMQ、API、worker 和前端一次性拉起，无需本机安装 Go/Node/中间件。
+
+### 1. 准备环境变量（可选）
+
+```bash
+cp .env.example .env
+```
+
+按需修改 `.env` 中的 MySQL 密码、JWT 密钥和阿里云 OSS 配置。`OSS_*` 留空时上传功能关闭，其他功能仍可正常使用。
+
+### 2. 启动 / 暂停
+
+```bash
+# 首次启动（会构建镜像）
+docker compose up -d --build
+
+# 暂停：容器和数据都保留
+docker compose stop
+
+# 继续运行
+docker compose start
+
+# 查看状态和日志
+docker compose ps
+docker compose logs -f api worker
+
+# 停止并删除容器（数据卷保留）
+docker compose down
+
+# 停止并删除容器与数据卷
+docker compose down -v
+```
+
+启动完成后（宿主机端口可在 `.env` 中覆盖）：
+
+```text
+前端页面:        http://localhost:8081
+API 直连:        http://localhost:8080
+RabbitMQ 管理台: http://localhost:25673（默认 guest/guest）
+MySQL:           127.0.0.1:13306（默认 root/govideo-local）
+API pprof:       http://localhost:6060/debug/pprof/
+Worker pprof:    http://localhost:6061/debug/pprof/
+```
+
+说明：
+
+- 后端容器使用 [configs/config-docker.yaml](configs/config-docker.yaml) 作为基础配置，`.env` 中的变量会覆盖其中的敏感项。
+- 修改 `configs/config-docker.yaml` 后执行 `docker compose restart api worker` 生效。
+- 修改 Go 代码后执行 `docker compose up -d --build api worker` 重新构建。
+- 修改前端代码后执行 `docker compose up -d --build web` 重新构建。
+- 如果拉取基础镜像超时，可为 Docker 配置镜像加速器；后端构建默认使用 `goproxy.cn` 拉取 Go 依赖，可通过 `--build-arg GOPROXY=https://proxy.golang.org,direct` 切换回官方代理。
+- 编排中的默认密码仅适合本地/测试环境；生产部署请修改 `.env` 中的 MySQL 密码与 `JWT_SECRET`。
 
 ## 快速启动
 

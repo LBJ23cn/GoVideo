@@ -1,0 +1,38 @@
+# Docker Compose 使用的配置。
+# 其中数据库/Redis/RabbitMQ 的主机名是 compose 服务名；
+# 密码等敏感项会在运行时被 docker-compose.yml 传入的环境变量覆盖。
+server:
+  port: 8080
+database:
+  host: mysql
+  port: 3306
+  user: root
+  password: govideo-local
+  dbname: go_video
+redis:
+  host: redis
+  port: 6379
+  db: 0
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  username: guest
+  password: guest
+jwt:
+  jwt_secret: govideo-docker-dev-secret-change-me
+oss:
+  # 留空时上传功能关闭（服务仍可正常启动）。
+  # 在 .env 中设置 OSS_* 环境变量即可启用。
+  endpoint:
+  region:
+  bucket:
+  access_key_id:
+  access_key_secret:
+  public_base_url:
+  timeout_seconds: 300
+observability:
+  pprof:
+    enabled: true
+    # 容器内需监听 0.0.0.0 才能通过端口映射访问
+    api_addr: 0.0.0.0:6060
+    worker_addr: 0.0.0.0:6061
