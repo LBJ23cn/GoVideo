@@ -17,7 +17,7 @@ Cover Packages: ./internal/...
 
 这里的覆盖率通过脚本中的 `-coverpkg=./internal/...` 统计，表示测试对后端核心代码包的语句覆盖率，而不是只统计 `tests/integration` 测试包本身。
 
-注意：新增 `api_smoke_integration_test.go` 和 `cos_integration_test.go` 后，需要重新运行脚本更新这里的测试数量和覆盖率。
+注意：新增 `api_smoke_integration_test.go` 和 `oss_integration_test.go` 后，需要重新运行脚本更新这里的测试数量和覆盖率。
 
 本轮集成测试曾暴露并修复一个真实业务问题：
 
@@ -121,7 +121,7 @@ tests/integration/
   testdata_helper_test.go
 
   api_smoke_integration_test.go
-  cos_integration_test.go
+  oss_integration_test.go
   db_schema_integration_test.go
 
   redis_cache_integration_test.go
@@ -401,17 +401,17 @@ api_smoke_integration_test.go
 
 这组测试等价于自动化接口主链路测试，但不会经过前端、Nginx、真实网络端口和浏览器。
 
-### COS 对象存储
+### OSS 对象存储
 
 覆盖文件：
 
 ```text
-cos_integration_test.go
+oss_integration_test.go
 ```
 
 覆盖点：
 
-- 从 `CONFIG_PATH` 加载真实 COS 配置。
+- 从 `CONFIG_PATH` 加载真实 OSS 配置。
 - 配置缺失或仍为占位值时自动跳过，避免误请求。
 - 创建一个很小的本地文本文件。
 - 调用 `UploadFile` 上传到对象存储。
@@ -426,7 +426,7 @@ cos_integration_test.go
 以下场景建议后续继续补：
 
 - SSE 长连接的真实 HTTP 流式响应测试。
-- COS 大文件分块上传场景。
+- OSS 大文件分块上传场景。
 - outbox processing 超时回收的快速测试。
 
 其中 outbox processing 超时当前默认是 5 分钟，字段也是 worker 内部配置。为了不修改业务代码迎合测试，目前没有强行压缩超时时间做测试。
@@ -435,7 +435,7 @@ cos_integration_test.go
 
 - 集成测试会清空测试数据库中的业务表。
 - 不要把 `configs/config-integration.yaml` 指向开发库或生产库。
-- 不要在集成测试中使用真实生产 COS bucket。
+- 不要在集成测试中使用真实生产 OSS bucket。
 - 如果测试失败，优先判断是环境问题、测试问题还是业务 bug。
 - 如果确认是业务 bug，应先记录和讨论，再修改业务代码。
 

@@ -46,7 +46,7 @@ func TestAPISmokeMainUserFlow(t *testing.T) {
 	authorLogin := apiLogin(t, router, authorUsername, "password")
 	viewerLogin := apiLogin(t, router, viewerUsername, "password")
 
-	// 使用作者token发布视频。这里直接传入URL，不走文件上传/COS。
+	// 使用作者token发布视频。这里直接传入URL，不走文件上传/OSS。
 	var published video.Video
 	apiPost(t, router, "/video/publish", authorLogin.Token, map[string]any{
 		"title":       "api smoke #apitest",

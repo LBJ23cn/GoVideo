@@ -15,13 +15,13 @@ GoVideo 是我用 Gin + Gorm 实现的短视频 Feed 流后端系统，支持用
 追问展开：
 
 ```text
-技术栈：Gin、Gorm、MySQL、Redis、RabbitMQ、腾讯云 COS、SSE、k6
+技术栈：Gin、Gorm、MySQL、Redis、RabbitMQ、阿里云 OSS、SSE、k6
 API 进程：HTTP 接口、JWT 鉴权、SSE 长连接、文件上传、MQ 投递
 Worker 进程：消费 MQ、更新 DB、更新 Redis 派生数据
 主数据源：MySQL
 缓存/派生数据：Redis
 异步解耦：RabbitMQ
-文件存储：COS
+文件存储：OSS
 ```
 
 ### Q2：这个项目相比普通 CRUD 的亮点在哪里？
@@ -46,14 +46,14 @@ Worker 进程：消费 MQ、更新 DB、更新 Redis 派生数据
 
 我把它拆成 API 进程和 worker 进程。API 进程负责 HTTP 请求、JWT 鉴权、SSE 长连接、文件上传和 MQ 投递；worker 进程负责消费点赞、评论、关注、热度、时间线等消息。
 
-多节点部署时，可以是多个 API 副本和多个 worker 副本，共享 MySQL、Redis、RabbitMQ 和 COS。MySQL 保存主业务数据，Redis 保存缓存、限流、分布式锁、热榜、时间线和 Pub/Sub，RabbitMQ 做异步消息队列，COS 做对象存储。
+多节点部署时，可以是多个 API 副本和多个 worker 副本，共享 MySQL、Redis、RabbitMQ 和 OSS。MySQL 保存主业务数据，Redis 保存缓存、限流、分布式锁、热榜、时间线和 Pub/Sub，RabbitMQ 做异步消息队列，OSS 做对象存储。
 
 追问展开：
 
 ```text
 api-1 api-2 api-3
 worker-1 worker-2
-MySQL Redis RabbitMQ COS
+MySQL Redis RabbitMQ OSS
 ```
 
 API 本地只保留 SSE 连接表和上传临时文件，不把本地磁盘作为最终存储。
@@ -721,29 +721,29 @@ SSEHub 是每个 API 节点自己的本地内存连接表。如果用户连接�
 
 实时推送会丢，因为 Redis Pub/Sub 不保存离线消息。但通知不会丢，因为 NotificationWorker 在推送前已经写入 notifications 表。用户重新上线后可以通过通知列表接口拉取历史通知和未读数。
 
-## 11. COS 对象存储
+## 11. OSS 对象存储
 
-### Q66：为什么接入 COS？
+### Q66：为什么接入 OSS？
 
 回答：
 
 多 API 节点部署时，本地文件不共享。如果视频上传到 api-1 的本地磁盘，之后请求打到 api-2，api-2 可能访问不到这个文件。
 
-所以我把视频、封面、头像迁移到腾讯云 COS。API 只负责临时接收和上传文件，最终数据库保存 COS URL，所有节点都能访问同一份资源。
+所以我把视频、封面、头像迁移到阿里云 OSS。API 只负责临时接收和上传文件，最终数据库保存 OSS URL，所有节点都能访问同一份资源。
 
 ### Q67：上传流程是什么？
 
 回答：
 
-前端 multipart 上传文件到 API，API 校验文件大小和后缀，然后保存到 `.run/uploads/...` 临时路径。接着调用 COS SDK 的 UploadFile 上传，上传成功后删除本地临时文件，并返回 COS URL。
+前端 multipart 上传文件到 API，API 校验文件大小和后缀，然后保存到 `.run/uploads/...` 临时路径。接着调用 OSS SDK 上传（小文件走 PutObjectFromFile，大文件走 UploadFile 分片上传），上传成功后删除本地临时文件，并返回 OSS URL。
 
 ### Q68：为什么先落盘，不直接流式上传？
 
 回答：
 
-当前使用 COS SDK 的高级上传接口 Upload，它可以根据文件大小自动选择普通上传或分块上传，适合短视频大文件。这个接口需要本地文件路径，所以先临时落盘。
+OSS SDK 的 UploadFile 分片上传接口需要本地文件路径，而且分片上传更适合大文件；小文件直接用 PutObjectFromFile 单次 PUT 请求更少。当前实现按文件大小选择：100MB 以内走 PutObjectFromFile，超过 100MB 走 UploadFile 分片上传（分片大小 10MB），所以接口需要先把文件临时落盘。
 
-如果后续想进一步优化，可以做前端直传 COS，后端只负责生成临时凭证或签名，这样可以减轻 API 服务器带宽压力。
+如果后续想进一步优化，可以做前端直传 OSS，后端只负责生成临时凭证或签名，这样可以减轻 API 服务器带宽压力。
 
 ## 12. 降级与稳定性
 
@@ -771,11 +771,11 @@ MySQL 是主数据源，当前系统强依赖 MySQL。Redis 和 RabbitMQ 的降�
 
 生产环境需要 MySQL 高可用、备份恢复、主从复制、读写分离等方案。当前项目作为简历项目主要做了 Redis 和 MQ 的降级，MySQL 高可用是后续生产化方向。
 
-### Q72：COS 故障怎么办？
+### Q72：OSS 故障怎么办？
 
 回答：
 
-COS 对上传接口是强依赖。COS 不可用时，视频、封面、头像上传会失败，不会返回本地 URL。因为本地文件只是临时文件，不作为最终存储。
+OSS 对上传接口是强依赖。OSS 不可用时，视频、封面、头像上传会失败，不会返回本地 URL。因为本地文件只是临时文件，不作为最终存储。
 
 历史已上传资源不受影响。
 
@@ -847,7 +847,7 @@ COS 对上传接口是强依赖。COS 不可用时，视频、封面、头像上
 
 回答：
 
-发布视频分两步。第一步是上传视频和封面，API 校验文件后临时落盘，调用 COS SDK 上传到对象存储，返回 play_url 和 cover_url。
+发布视频分两步。第一步是上传视频和封面，API 校验文件后临时落盘，调用 OSS SDK 上传到对象存储，返回 play_url 和 cover_url。
 
 第二步是调用 `/video/publish`，后端在 MySQL 事务里插入 videos 表，同时插入一条 outbox pending 消息，并解析标题和描述里的标签写入 tags 和 video_tags。
 
@@ -919,9 +919,9 @@ NotificationWorker 同时消费 social.follow 事件，给被关注者生成通�
 
 第一，API 和 worker 进程拆分，可以独立扩容。
 
-第二，Redis、MySQL、RabbitMQ、COS 作为共享状态，本地只保存临时状态，支持多 API 节点。
+第二，Redis、MySQL、RabbitMQ、OSS 作为共享状态，本地只保存临时状态，支持多 API 节点。
 
-第三，文件上传迁移到 COS，避免多节点本地文件不共享。
+第三，文件上传迁移到 OSS，避免多节点本地文件不共享。
 
 第四，SSE 推送通过 Redis Pub/Sub 跨节点广播，解决用户连接节点和消息消费节点不一致。
 
@@ -943,7 +943,7 @@ MySQL 高可用还没有做，API 启动时 AutoMigrate 在生产多副本下也
 
 RabbitMQ 和 Redis 也需要高可用部署、监控和报警。死信队列目前能保存失败消息，但还缺自动补偿或人工重试后台。
 
-日志和监控还可以继续完善，比如接口 P99、MQ 积压、DLX 数量、Redis 命中率、MySQL 慢查询、COS 上传耗时。
+日志和监控还可以继续完善，比如接口 P99、MQ 积压、DLX 数量、Redis 命中率、MySQL 慢查询、OSS 上传耗时。
 
 ## 16. 项目难点与取舍
 

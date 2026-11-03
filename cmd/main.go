@@ -13,7 +13,7 @@ import (
 	"github.com/kiritosuki/GoVideo/internal/config"
 	"github.com/kiritosuki/GoVideo/internal/db"
 	apphttp "github.com/kiritosuki/GoVideo/internal/http"
-	cosstore "github.com/kiritosuki/GoVideo/internal/middleware/cos"
+	ossstore "github.com/kiritosuki/GoVideo/internal/middleware/oss"
 	"github.com/kiritosuki/GoVideo/internal/middleware/rabbitmq"
 	rediscache "github.com/kiritosuki/GoVideo/internal/middleware/redis"
 	"github.com/kiritosuki/GoVideo/internal/observability"
@@ -76,11 +76,11 @@ func main() {
 		log.Printf("RabbitMQ connected\n")
 	}
 
-	// 连接COS对象存储 用于视频/封面/头像上传
-	cosClient, err := cosstore.NewClient(&cfg.COS)
+	// 连接OSS对象存储 用于视频/封面/头像上传
+	ossClient, err := ossstore.NewClient(&cfg.OSS)
 	if err != nil {
-		log.Printf("COS config error (upload disabled): %v\n", err)
-		cosClient = nil
+		log.Printf("OSS config error (upload disabled): %v\n", err)
+		ossClient = nil
 	}
 
 	// 启动Pprof服务
@@ -100,7 +100,7 @@ func main() {
 	defer stop()
 
 	// 设置路由并启动api服务
-	r, notificationHub := apphttp.SetRouter(gormDB, cache, rmq, cosClient)
+	r, notificationHub := apphttp.SetRouter(gormDB, cache, rmq, ossClient)
 	// 启动消息通知推送服务
 	worker.StartNotification(ctx, rmq, gormDB, cache, notificationHub)
 	log.Printf("server is running on port %d\n", cfg.Server.Port)

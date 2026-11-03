@@ -23,13 +23,16 @@ rabbitmq:
 jwt:
   jwt_secret: change-me
 
-cos:
-  # 轻量对象存储兼容COS SDK，bucket需要填写完整 BucketName-Appid。
-  bucket: examplebucket-1250000000
-  region: ap-beijing
-  secret_id: change-me
-  secret_key: change-me
-  public_base_url: https://examplebucket-1250000000.cos.ap-beijing.myqcloud.com
+oss:
+  # 阿里云OSS Endpoint，留空时根据region自动拼接为 https://oss-<region>.aliyuncs.com
+  # 如果使用自定义CNAME域名，直接填写该域名（SDK会按CNAME方式处理）
+  endpoint: https://oss-cn-beijing.aliyuncs.com
+  region: cn-beijing
+  bucket: examplebucket
+  access_key_id: change-me
+  access_key_secret: change-me
+  # 对象公开访问域名，可用于CDN或自定义域名；留空时使用 https://<bucket>.<endpoint>
+  public_base_url: https://examplebucket.oss-cn-beijing.aliyuncs.com
   timeout_seconds: 10
 
 observability:

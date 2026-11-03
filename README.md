@@ -2,7 +2,7 @@
 
 GoVideo 是一个基于 Gin + Gorm 的短视频 Feed 流后端系统，支持用户注册登录、视频发布、Feed 流、热门榜、点赞评论、关注关系、消息通知、对象存储上传、集成测试和性能压测等能力。
 
-项目重点围绕后端工程化场景设计：多级缓存、缓存击穿保护、滑动窗口限流、RabbitMQ 异步解耦、Outbox 可靠投递、消费幂等、SSE 分布式通知推送、COS 对象存储、集成测试与 k6 性能测试。
+项目重点围绕后端工程化场景设计：多级缓存、缓存击穿保护、滑动窗口限流、RabbitMQ 异步解耦、Outbox 可靠投递、消费幂等、SSE 分布式通知推送、OSS 对象存储、集成测试与 k6 性能测试。
 
 ## 技术栈
 
@@ -11,7 +11,7 @@ GoVideo 是一个基于 Gin + Gorm 的短视频 Feed 流后端系统，支持用
 数据库：MySQL
 缓存与分布式能力：Redis, go-cache, singleflight
 消息队列：RabbitMQ
-对象存储：腾讯云 COS
+对象存储：阿里云 OSS
 实时推送：SSE, Redis Pub/Sub
 测试：go test, miniredis, Docker Compose, k6
 前端调试：Vue3
@@ -31,7 +31,7 @@ GoVideo 是一个基于 Gin + Gorm 的短视频 Feed 流后端系统，支持用
 - 基于状态机、任务抢占和超时回收保障时间线事件可靠投递。
 - 基于事件 ID、唯一索引和重复消息丢弃实现评论与通知消费幂等。
 - 基于 SSE + Redis Pub/Sub 实现分布式通知推送。
-- 接入腾讯云 COS，完成视频、封面、头像对象存储上传。
+- 接入阿里云 OSS，完成视频、封面、头像对象存储上传。
 - 编写单元测试、集成测试和 k6 性能测试脚本。
 
 ## 架构概览
@@ -52,13 +52,13 @@ flowchart LR
     mysql[("MySQL<br/>业务数据 · 通知 · Outbox")]
     redis[("Redis<br/>缓存 · 限流 · 时间线 · Pub/Sub")]
     mq["RabbitMQ<br/>异步事件"]
-    cos["腾讯云 COS<br/>视频 · 封面 · 头像"]
+    oss["阿里云 OSS<br/>视频 · 封面 · 头像"]
 
     client -->|HTTP| http
     notif -->|SSE 推送| client
     biz <-->|读写| mysql
     biz <-->|缓存和限流| redis
-    biz -->|上传文件| cos
+    biz -->|上传文件| oss
     biz -->|互动和热度事件| mq
     mysql -->|扫描 Outbox| outbox
     outbox -->|投递时间线事件| mq
@@ -85,7 +85,7 @@ worker-2
 MySQL
 Redis
 RabbitMQ
-COS
+OSS
 ```
 
 API 进程负责：
@@ -94,7 +94,7 @@ API 进程负责：
 HTTP 接口
 JWT 鉴权
 SSE 长连接
-文件临时落盘并上传 COS
+文件临时落盘并上传 OSS
 RabbitMQ 消息投递
 部分中间件故障时的同步降级
 ```
@@ -116,7 +116,7 @@ cmd/worker/main.go           worker 进程入口
 internal/http/router.go      HTTP 路由和 handler 组装
 internal/api/*               业务模块
 internal/worker/*            后台 worker
-internal/middleware/*        Redis/RabbitMQ/JWT/COS/限流封装
+internal/middleware/*        Redis/RabbitMQ/JWT/OSS/限流封装
 internal/db                  数据库连接与建表
 configs                      配置文件
 deploy                       Docker Compose 等部署辅助文件
@@ -130,7 +130,7 @@ web                          前端调试页面
 ## 重要文档
 
 - [API 接口文档](docs/api.md)：记录所有 HTTP 接口、请求参数、响应结构和异步行为。
-- [分布式部署与降级说明](docs/distributed-deployment.md)：说明多节点部署、Redis/RabbitMQ/COS 降级效果和剩余风险。
+- [分布式部署与降级说明](docs/distributed-deployment.md)：说明多节点部署、Redis/RabbitMQ/OSS 降级效果和剩余风险。
 - [集成测试说明](docs/integration-test.md)：说明集成测试环境、运行方式、覆盖范围和结果输出。
 - [性能测试说明](docs/performance-test.md)：说明 k6 压测范围、脚本参数和输出结果。
 - [项目保姆级复习手册](docs/baby-guide.md)：详细解释项目核心链路、设计取舍和面试追问点。
@@ -153,7 +153,7 @@ MySQL
 Redis
 RabbitMQ
 JWT secret
-COS bucket/region/secret/public_base_url
+OSS bucket/region/access_key_id/access_key_secret/public_base_url
 ```
 
 也可以通过 `CONFIG_PATH` 指定配置文件：

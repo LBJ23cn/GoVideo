@@ -14,7 +14,7 @@ type Config struct {
 	Redis         RedisConfig         `yaml:"redis"`
 	RabbitMQ      RabbitMQConfig      `yaml:"rabbitmq"`
 	JWT           JWTConfig           `yaml:"jwt"`
-	COS           COSConfig           `yaml:"cos"`
+	OSS           OSSConfig           `yaml:"oss"`
 	Observability ObservabilityConfig `yaml:"observability"`
 }
 
@@ -48,13 +48,14 @@ type JWTConfig struct {
 	JWTSecret string `yaml:"jwt_secret"`
 }
 
-type COSConfig struct {
-	Bucket         string `yaml:"bucket"`
-	Region         string `yaml:"region"`
-	SecretID       string `yaml:"secret_id"`
-	SecretKey      string `yaml:"secret_key"`
-	PublicBaseURL  string `yaml:"public_base_url"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
+type OSSConfig struct {
+	Bucket          string `yaml:"bucket"`
+	Region          string `yaml:"region"`
+	Endpoint        string `yaml:"endpoint"`
+	AccessKeyID     string `yaml:"access_key_id"`
+	AccessKeySecret string `yaml:"access_key_secret"`
+	PublicBaseURL   string `yaml:"public_base_url"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds"`
 }
 
 type ObservabilityConfig struct {
@@ -146,24 +147,27 @@ func ApplyEnvOverrides(config *Config) {
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		config.JWT.JWTSecret = v
 	}
-	if v := os.Getenv("COS_BUCKET"); v != "" {
-		config.COS.Bucket = v
+	if v := os.Getenv("OSS_BUCKET"); v != "" {
+		config.OSS.Bucket = v
 	}
-	if v := os.Getenv("COS_REGION"); v != "" {
-		config.COS.Region = v
+	if v := os.Getenv("OSS_REGION"); v != "" {
+		config.OSS.Region = v
 	}
-	if v := os.Getenv("COS_SECRET_ID"); v != "" {
-		config.COS.SecretID = v
+	if v := os.Getenv("OSS_ENDPOINT"); v != "" {
+		config.OSS.Endpoint = v
 	}
-	if v := os.Getenv("COS_SECRET_KEY"); v != "" {
-		config.COS.SecretKey = v
+	if v := os.Getenv("OSS_ACCESS_KEY_ID"); v != "" {
+		config.OSS.AccessKeyID = v
 	}
-	if v := os.Getenv("COS_PUBLIC_BASE_URL"); v != "" {
-		config.COS.PublicBaseURL = v
+	if v := os.Getenv("OSS_ACCESS_KEY_SECRET"); v != "" {
+		config.OSS.AccessKeySecret = v
 	}
-	if v := os.Getenv("COS_TIMEOUT_SECONDS"); v != "" {
+	if v := os.Getenv("OSS_PUBLIC_BASE_URL"); v != "" {
+		config.OSS.PublicBaseURL = v
+	}
+	if v := os.Getenv("OSS_TIMEOUT_SECONDS"); v != "" {
 		if timeout, err := strconv.Atoi(v); err == nil {
-			config.COS.TimeoutSeconds = timeout
+			config.OSS.TimeoutSeconds = timeout
 		}
 	}
 }

@@ -14,8 +14,8 @@ import (
 	"github.com/kiritosuki/GoVideo/internal/api/profile"
 	"github.com/kiritosuki/GoVideo/internal/api/social"
 	"github.com/kiritosuki/GoVideo/internal/api/video"
-	cosstore "github.com/kiritosuki/GoVideo/internal/middleware/cos"
 	"github.com/kiritosuki/GoVideo/internal/middleware/jwt"
+	ossstore "github.com/kiritosuki/GoVideo/internal/middleware/oss"
 	"github.com/kiritosuki/GoVideo/internal/middleware/rabbitmq"
 	"github.com/kiritosuki/GoVideo/internal/middleware/ratelimit"
 	rediscache "github.com/kiritosuki/GoVideo/internal/middleware/redis"
@@ -23,7 +23,7 @@ import (
 )
 
 // SetRouter 配置全局路由
-func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ, cosClient *cosstore.Client) (*gin.Engine, notification.NotificationHub) {
+func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ, ossClient *ossstore.Client) (*gin.Engine, notification.NotificationHub) {
 	r := gin.Default()
 	// 设置信任的ip 默认是信任所有ip
 	// 对于信任的ip: 从header中获取clientIP
@@ -44,7 +44,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ, co
 	// account 路由
 	accountRepo := account.NewAccountRepo(db)
 	accountService := account.NewAccountService(accountRepo, cache)
-	accountHandler := account.NewAccountHandler(accountService, cosClient)
+	accountHandler := account.NewAccountHandler(accountService, ossClient)
 	accountGroup := r.Group("/account")
 	{
 		accountGroup.POST("/register", registerLimiter, accountHandler.CreateAccount)
@@ -66,7 +66,7 @@ func SetRouter(db *gorm.DB, cache *rediscache.Client, rmq *rabbitmq.RabbitMQ, co
 	// video 路由
 	videoRepo := video.NewVideoRepo(db)
 	videoService := video.NewVideoService(videoRepo, cache)
-	videoHandler := video.NewVideoHandler(videoService, cosClient)
+	videoHandler := video.NewVideoHandler(videoService, ossClient)
 	videoGroup := r.Group("/video")
 	{
 		videoGroup.POST("/listByAuthorID", videoHandler.ListByAuthorID)

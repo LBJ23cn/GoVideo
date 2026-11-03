@@ -17,7 +17,7 @@ worker-2
 MySQL
 Redis
 RabbitMQ
-COS
+OSS
 ```
 
 API 进程负责：
@@ -25,7 +25,7 @@ API 进程负责：
 - HTTP 接口。
 - JWT 鉴权。
 - SSE 长连接。
-- 文件临时落盘和 COS 上传。
+- 文件临时落盘和 OSS 上传。
 - 在 RabbitMQ 可用时投递异步业务消息。
 - 在 RabbitMQ 不可用时执行部分同步降级逻辑。
 
@@ -43,14 +43,14 @@ worker 进程负责：
 - MySQL：主业务数据、通知记录、outbox 表。
 - Redis：缓存、限流、分布式锁、实时通知 Pub/Sub、timeline 派生数据。
 - RabbitMQ：异步消息队列。
-- COS：视频、封面、头像对象存储。
+- OSS：视频、封面、头像对象存储。
 
 API 节点本地只保留临时状态：
 
 - SSEHub 内存连接表。
 - 上传时的 `.run/uploads/...` 临时文件。
 
-上传文件成功写入 COS 后，本地临时文件会删除。因此 API 节点之间不需要共享本地上传目录。
+上传文件成功写入 OSS 后，本地临时文件会删除。因此 API 节点之间不需要共享本地上传目录。
 
 ## 3. Redis 依赖与降级效果
 
@@ -154,27 +154,27 @@ Redis 和 RabbitMQ 的降级逻辑都建立在 MySQL 可用的前提上。
 - API 启动只连接数据库，不自动修改 schema。
 - 部署时先执行迁移任务，再启动 API 和 worker。
 
-## 6. COS 依赖与降级效果
+## 6. OSS 依赖与降级效果
 
-视频、封面、头像上传已经迁移到 COS。
+视频、封面、头像上传已经迁移到 OSS。
 
 当前上传流程：
 
 ```txt
 API 校验 multipart 文件
 保存到本地临时路径 .run/uploads/...
-调用 COS UploadFile
+调用 OSS UploadFile
 上传成功后删除本地临时文件
-返回 COS URL
+返回 OSS URL
 ```
 
-COS 在上传接口中是强依赖：
+OSS 在上传接口中是强依赖：
 
-- COS 不可用时，上传接口会失败。
+- OSS 不可用时，上传接口会失败。
 - 不会再返回本地 `/static/...` URL。
 - 本地文件只作为临时文件，不作为最终存储。
 
-多 API 节点部署时不需要共享 `.run/uploads`，因为最终文件在 COS 中。
+多 API 节点部署时不需要共享 `.run/uploads`，因为最终文件在 OSS 中。
 
 ## 7. Outbox 与 Timeline
 
@@ -243,10 +243,10 @@ api-3 subscribe
 - 数据库迁移任务独立化，移除 API 启动时的自动迁移。
 - Redis 高可用和故障恢复。
 - RabbitMQ 高可用、死信队列监控和积压报警。
-- COS 上传失败重试和超时配置优化。
+- OSS 上传失败重试和超时配置优化。
 - 统一结构化日志。
 - 健康检查和 readiness/liveness probe。
-- 关键指标监控：接口耗时、错误率、MQ 积压、worker 消费速率、Redis 命中率、COS 上传耗时。
+- 关键指标监控：接口耗时、错误率、MQ 积压、worker 消费速率、Redis 命中率、OSS 上传耗时。
 - popularity worker 的严格幂等可作为可选优化。
 - outbox failed 状态的人工重试或后台补偿工具。
 
@@ -260,10 +260,10 @@ api-3 subscribe
 共享 MySQL
 共享 Redis
 共享 RabbitMQ
-共享 COS
+共享 OSS
 ```
 
-核心业务数据以 MySQL 为准，文件以 COS 为准，异步事件通过 RabbitMQ 解耦，缓存和实时推送通过 Redis 支撑。
+核心业务数据以 MySQL 为准，文件以 OSS 为准，异步事件通过 RabbitMQ 解耦，缓存和实时推送通过 Redis 支撑。
 
 需要特别说明的是：
 
@@ -271,5 +271,5 @@ api-3 subscribe
 - Redis 对 notification 跨节点实时推送是关键依赖。
 - RabbitMQ 对 API 核心写操作有部分同步降级。
 - RabbitMQ 对 worker 异步处理是强依赖。
-- COS 对上传接口是强依赖。
+- OSS 对上传接口是强依赖。
 - MySQL 是系统主依赖，不可降级。

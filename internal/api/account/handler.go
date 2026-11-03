@@ -12,20 +12,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kiritosuki/GoVideo/internal/apierror"
-	cosstore "github.com/kiritosuki/GoVideo/internal/middleware/cos"
+	ossstore "github.com/kiritosuki/GoVideo/internal/middleware/oss"
 	"github.com/kiritosuki/GoVideo/internal/util"
 	"gorm.io/gorm"
 )
 
 type AccountHandler struct {
 	accountService *AccountService
-	cosClient      *cosstore.Client
+	ossClient      *ossstore.Client
 }
 
-func NewAccountHandler(accountService *AccountService, cosClient *cosstore.Client) *AccountHandler {
+func NewAccountHandler(accountService *AccountService, ossClient *ossstore.Client) *AccountHandler {
 	return &AccountHandler{
 		accountService: accountService,
-		cosClient:      cosClient,
+		ossClient:      ossClient,
 	}
 }
 
@@ -198,8 +198,8 @@ func (h *AccountHandler) UploadAvatar(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	if h.cosClient == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cos client is not initialized"})
+	if h.ossClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "oss client is not initialized"})
 		return
 	}
 	// 提取前端上传的名为"file"的 multipart/form-data 类型文件
@@ -244,10 +244,10 @@ func (h *AccountHandler) UploadAvatar(c *gin.Context) {
 	}
 	// 删除临时文件
 	defer removeTempFile(absPath)
-	// cos对象存储key avatars/2/xxx.jpg
+	// oss对象存储key avatars/2/xxx.jpg
 	objectKey := path.Join("avatars", strconv.FormatUint(uint64(accountID), 10), filename)
-	// 上传文件到cos
-	avatarURL, err := h.cosClient.UploadFile(c.Request.Context(), objectKey, absPath)
+	// 上传文件到oss
+	avatarURL, err := h.ossClient.UploadFile(c.Request.Context(), objectKey, absPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

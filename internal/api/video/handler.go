@@ -12,20 +12,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kiritosuki/GoVideo/internal/apierror"
-	cosstore "github.com/kiritosuki/GoVideo/internal/middleware/cos"
 	"github.com/kiritosuki/GoVideo/internal/middleware/jwt"
+	ossstore "github.com/kiritosuki/GoVideo/internal/middleware/oss"
 	"github.com/kiritosuki/GoVideo/internal/util"
 )
 
 type VideoHandler struct {
 	videoService *VideoService
-	cosClient    *cosstore.Client
+	ossClient    *ossstore.Client
 }
 
-func NewVideoHandler(videoService *VideoService, cosClient *cosstore.Client) *VideoHandler {
+func NewVideoHandler(videoService *VideoService, ossClient *ossstore.Client) *VideoHandler {
 	return &VideoHandler{
 		videoService: videoService,
-		cosClient:    cosClient,
+		ossClient:    ossClient,
 	}
 }
 
@@ -37,8 +37,8 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	if h.cosClient == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cos client is not initialized"})
+	if h.ossClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "oss client is not initialized"})
 		return
 	}
 	// 提取前端上传的名为"file"的 multipart/form-data 类型文件
@@ -82,10 +82,10 @@ func (h *VideoHandler) UploadVideo(c *gin.Context) {
 	}
 	// 删除临时落盘文件
 	defer removeTempFile(absPath)
-	// cos对象存储key videos/2/20060102/xxx.mp4
+	// oss对象存储key videos/2/20060102/xxx.mp4
 	objectKey := path.Join("videos", strconv.FormatUint(uint64(authorID), 10), date, filename)
-	// 上传文件到cos
-	videoURL, err := h.cosClient.UploadFile(c.Request.Context(), objectKey, absPath)
+	// 上传文件到oss
+	videoURL, err := h.ossClient.UploadFile(c.Request.Context(), objectKey, absPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -104,8 +104,8 @@ func (h *VideoHandler) UploadCover(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	if h.cosClient == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cos client is not initialized"})
+	if h.ossClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "oss client is not initialized"})
 		return
 	}
 	// 提取前端上传的名为"file"的 multipart/form-data 类型文件
@@ -151,10 +151,10 @@ func (h *VideoHandler) UploadCover(c *gin.Context) {
 	}
 	// 删除临时落盘文件
 	defer removeTempFile(absPath)
-	// cos对象存储key covers/2/20060102/xxx.jpg
+	// oss对象存储key covers/2/20060102/xxx.jpg
 	objectKey := path.Join("covers", strconv.FormatUint(uint64(authorID), 10), date, filename)
-	// 上传文件到cos
-	coverURL, err := h.cosClient.UploadFile(c.Request.Context(), objectKey, absPath)
+	// 上传文件到oss
+	coverURL, err := h.ossClient.UploadFile(c.Request.Context(), objectKey, absPath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -45,7 +45,7 @@ func TestApplyEnvOverrides(t *testing.T) {
 	t.Setenv("REDIS_DB", "3")
 	t.Setenv("RABBITMQ_USER", "admin")
 	t.Setenv("JWT_SECRET", "env-secret")
-	t.Setenv("COS_TIMEOUT_SECONDS", "600")
+	t.Setenv("OSS_TIMEOUT_SECONDS", "600")
 
 	cfg, err := Load(configFile)
 	if err != nil {
@@ -67,8 +67,8 @@ func TestApplyEnvOverrides(t *testing.T) {
 	if cfg.JWT.JWTSecret != "env-secret" {
 		t.Fatalf("expected env jwt secret, got %q", cfg.JWT.JWTSecret)
 	}
-	if cfg.COS.TimeoutSeconds != 600 {
-		t.Fatalf("expected env cos timeout 600, got %d", cfg.COS.TimeoutSeconds)
+	if cfg.OSS.TimeoutSeconds != 600 {
+		t.Fatalf("expected env oss timeout 600, got %d", cfg.OSS.TimeoutSeconds)
 	}
 }
 
@@ -78,11 +78,11 @@ func TestApplyEnvOverridesIgnoresInvalidNumbers(t *testing.T) {
 	cfg := Config{
 		Server: ServerConfig{Port: 8080},
 		Redis:  RedisConfig{DB: 1},
-		COS:    COSConfig{TimeoutSeconds: 300},
+		OSS:    OSSConfig{TimeoutSeconds: 300},
 	}
 	t.Setenv("SERVER_PORT", "not-number")
 	t.Setenv("REDIS_DB", "not-number")
-	t.Setenv("COS_TIMEOUT_SECONDS", "not-number")
+	t.Setenv("OSS_TIMEOUT_SECONDS", "not-number")
 
 	ApplyEnvOverrides(&cfg)
 
@@ -92,8 +92,8 @@ func TestApplyEnvOverridesIgnoresInvalidNumbers(t *testing.T) {
 	if cfg.Redis.DB != 1 {
 		t.Fatalf("expected redis db to keep original value, got %d", cfg.Redis.DB)
 	}
-	if cfg.COS.TimeoutSeconds != 300 {
-		t.Fatalf("expected cos timeout to keep original value, got %d", cfg.COS.TimeoutSeconds)
+	if cfg.OSS.TimeoutSeconds != 300 {
+		t.Fatalf("expected oss timeout to keep original value, got %d", cfg.OSS.TimeoutSeconds)
 	}
 }
 
@@ -127,11 +127,11 @@ rabbitmq:
   password: guest
 jwt:
   jwt_secret: file-secret
-cos:
-  bucket: examplebucket-1250000000
-  region: ap-beijing
-  secret_id: sid
-  secret_key: skey
+oss:
+  bucket: examplebucket
+  region: cn-beijing
+  access_key_id: ak
+  access_key_secret: sk
   public_base_url:
   timeout_seconds: 300
 observability:

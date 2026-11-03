@@ -296,14 +296,14 @@ file: jpg/jpeg/png/webp，最大 10MB
 
 ```json
 {
-  "avatar_url": "https://bucket.cos.region.myqcloud.com/avatars/1/xxx.jpg"
+  "avatar_url": "https://bucket.oss-cn-beijing.aliyuncs.com/avatars/1/xxx.jpg"
 }
 ```
 
 说明：
 
 - 文件会先临时落盘。
-- 上传到 COS 后删除本地临时文件。
+- 上传到 OSS 后删除本地临时文件。
 - 成功后更新用户 `avatar_url`。
 
 ### 更新资料
@@ -353,8 +353,8 @@ file: mp4，最大 200MB
 
 ```json
 {
-  "url": "https://bucket.cos.region.myqcloud.com/videos/1/20260605/xxx.mp4",
-  "play_url": "https://bucket.cos.region.myqcloud.com/videos/1/20260605/xxx.mp4"
+  "url": "https://bucket.oss-cn-beijing.aliyuncs.com/videos/1/20260605/xxx.mp4",
+  "play_url": "https://bucket.oss-cn-beijing.aliyuncs.com/videos/1/20260605/xxx.mp4"
 }
 ```
 
@@ -380,8 +380,8 @@ file: jpg/jpeg/png/webp，最大 10MB
 
 ```json
 {
-  "url": "https://bucket.cos.region.myqcloud.com/covers/1/20260605/xxx.jpg",
-  "cover_url": "https://bucket.cos.region.myqcloud.com/covers/1/20260605/xxx.jpg"
+  "url": "https://bucket.oss-cn-beijing.aliyuncs.com/covers/1/20260605/xxx.jpg",
+  "cover_url": "https://bucket.oss-cn-beijing.aliyuncs.com/covers/1/20260605/xxx.jpg"
 }
 ```
 

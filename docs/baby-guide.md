@@ -22,7 +22,7 @@ GoVideo 是一个基于 Gin + Gorm 的短视频 Feed 流后端系统，支持用
 可靠投递：Outbox 模式 + 状态机 + 重试
 重复消息：事件 ID + 唯一索引 + 幂等消费
 分布式推送：SSE + Redis Pub/Sub
-对象存储：腾讯云 COS 存视频/封面/头像
+对象存储：阿里云 OSS 存视频/封面/头像
 工程化测试：单元测试 + 集成测试 + k6 性能测试
 ```
 
@@ -39,7 +39,7 @@ API 进程：
   处理 HTTP 请求
   JWT 鉴权
   SSE 长连接
-  文件临时落盘并上传 COS
+  文件临时落盘并上传 OSS
   投递 RabbitMQ 消息
   RabbitMQ 不可用时执行部分同步降级
 
@@ -63,7 +63,7 @@ worker-2
 MySQL
 Redis
 RabbitMQ
-COS
+OSS
 ```
 
 共享状态：
@@ -72,7 +72,7 @@ COS
 MySQL：账号、视频、点赞、评论、关注、通知、outbox
 Redis：缓存、限流、分布式锁、Feed 派生数据、热度榜、Pub/Sub
 RabbitMQ：异步事件队列
-COS：视频、封面、头像对象存储
+OSS：视频、封面、头像对象存储
 ```
 
 本地状态：
@@ -99,7 +99,7 @@ cmd/worker/main.go       worker 入口
 internal/http/router.go  路由组装
 internal/api/*           各业务模块 handler/service/repo/entity
 internal/worker/*        后台消费者和 outbox/timeline worker
-internal/middleware/*    Redis/RabbitMQ/JWT/COS/限流等基础设施封装
+internal/middleware/*    Redis/RabbitMQ/JWT/OSS/限流等基础设施封装
 internal/db              数据库连接和 AutoMigrate
 tests/integration        集成测试
 tests/performance        k6 性能测试
@@ -1479,9 +1479,9 @@ if err := w.cache.PublishJSON(...); err == nil {
 
 > Redis 不可用时，分布式实时推送能力会降级，但通知数据不丢。在线实时性依赖 Redis Pub/Sub，离线可靠性依赖 MySQL。
 
-## 15. 对象存储 COS
+## 15. 对象存储 OSS
 
-### 15.1 为什么用 COS
+### 15.1 为什么用 OSS
 
 最初如果把视频、封面、头像存在 API 本地目录，多节点部署会有问题：
 
@@ -1494,7 +1494,7 @@ api-2 本地没有这个文件
 所以迁移到对象存储：
 
 ```text
-所有 API 节点上传到同一个 COS bucket
+所有 API 节点上传到同一个 OSS bucket
 数据库只保存对象可访问 URL
 任意节点返回的 URL 都可访问
 ```
@@ -1505,19 +1505,28 @@ api-2 本地没有这个文件
 1. 前端 multipart 上传文件到 API
 2. API 校验大小和后缀
 3. 保存到 .run/uploads/... 临时文件
-4. 调用 COS SDK UploadFile
+4. 调用 OSS SDK 上传（小文件 PutObjectFromFile，大文件 UploadFile 分片上传）
 5. 上传成功后删除本地临时文件
-6. 返回 COS URL
+6. 返回 OSS URL
 ```
 
 为什么先落盘？
 
-> 当前使用 COS SDK 的高级上传接口 `Object.Upload`，它根据文件大小自动选择普通上传或分块上传，适合大视频。这个接口需要本地文件路径，所以先临时落盘。临时文件不是最终存储，上传成功后会删除。
+> OSS SDK 的分片上传接口 `UploadFile` 需要本地文件路径，小文件用的 `PutObjectFromFile` 同样以文件路径为参数，所以先临时落盘。临时文件不是最终存储，上传成功后会删除。
 
 关键代码：
 
 ```go
-if _, _, err := c.client.Object.Upload(ctx, key, filePath, nil); err != nil {
+info, err := os.Stat(filePath)
+if err != nil {
+    return "", err
+}
+if info.Size() > multipartThreshold {
+    err = c.bucket.UploadFile(key, filePath, defaultPartSize)
+} else {
+    err = c.bucket.PutObjectFromFile(key, filePath)
+}
+if err != nil {
     return "", err
 }
 return c.ObjectURL(key)
@@ -1531,16 +1540,16 @@ covers/{authorID}/{date}/{random}.jpg
 avatars/{accountID}/{random}.jpg
 ```
 
-### 15.3 Put 和 Upload 的区别
+### 15.3 PutObject 和 UploadFile 的区别
 
-腾讯云 SDK：
+阿里云 SDK：
 
 ```text
-Put：普通上传，适合小文件和流式 body
-Upload：高级上传，小文件普通上传，大文件自动分块上传
+PutObjectFromFile：单次 PUT，适合小文件，请求数少
+UploadFile：分片上传，适合大文件，支持并发和断点续传
 ```
 
-短视频可能达到 200MB，所以选择 Upload 更稳。
+短视频最大 200MB，所以当前实现以 100MB 为阈值：不超过 100MB 用 PutObjectFromFile，超过则用 UploadFile 分片上传（分片大小 10MB）。
 
 ## 16. 数据库与索引设计
 
@@ -1620,7 +1629,7 @@ MySQL 是主数据源，当前强依赖 MySQL。
 
 > Redis 和 RabbitMQ 的降级都建立在 MySQL 可用的前提上。MySQL 故障时主业务不可用，这需要数据库高可用、备份恢复、读写分离等生产化方案。
 
-### 17.4 COS 故障
+### 17.4 OSS 故障
 
 ```text
 上传接口失败
@@ -1638,7 +1647,7 @@ MySQL 是主数据源，当前强依赖 MySQL。
 MySQL
 Redis
 RabbitMQ
-COS
+OSS
 ```
 
 不能依赖：
@@ -1651,7 +1660,7 @@ COS
 项目中：
 
 ```text
-文件最终存 COS
+文件最终存 OSS
 SSE 跨节点靠 Redis Pub/Sub
 Feed 派生数据在 Redis
 token 状态在 MySQL/Redis
@@ -1702,7 +1711,7 @@ JWT
 配置加载
 Redis 封装（miniredis）
 滑动窗口限流
-COS key/url 生成
+OSS key/url 生成
 util 工具函数
 apierror
 observability
@@ -1741,7 +1750,7 @@ RabbitMQ 拓扑、重试、死信队列
 Service 核心逻辑
 Worker 消费
 API smoke 流程
-COS 少量上传/删除
+OSS 少量上传/删除
 ```
 
 ### 19.3 性能测试
@@ -1790,7 +1799,7 @@ VUS=20 且无 sleep，不是 20 QPS，而是 20 个虚拟用户疯狂循环
 6. 健康检查 readiness/liveness
 7. popularity worker 严格幂等
 8. outbox failed 人工重试或补偿工具
-9. COS 上传失败重试和上传耗时监控
+9. OSS 上传失败重试和上传耗时监控
 10. Feed 热榜算法继续优化，例如时间衰减和多行为权重
 ```
 
@@ -1840,9 +1849,9 @@ VUS=20 且无 sleep，不是 20 QPS，而是 20 个虚拟用户疯狂循环
 
 > 热度榜是排序指标，不是主业务计数。重复消费造成的是分值轻微偏差，不会破坏点赞关系、评论记录这些主数据。当前业务可容忍，后续可以通过 Redis 去重 key 或 event 表实现严格幂等。
 
-### 21.12 为什么用 COS？
+### 21.12 为什么用 OSS？
 
-> 多 API 节点下本地文件不共享，上传到某个节点后其他节点访问不到。COS 是共享对象存储，视频、封面、头像上传后返回统一 URL，数据库保存 URL，任意 API 节点都能返回同一资源。
+> 多 API 节点下本地文件不共享，上传到某个节点后其他节点访问不到。OSS 是共享对象存储，视频、封面、头像上传后返回统一 URL，数据库保存 URL，任意 API 节点都能返回同一资源。
 
 ### 21.13 为什么 API 和 worker 分进程？
 
@@ -1947,7 +1956,7 @@ video/publish Outbox 流程
 worker 重试和死信流程
 点赞/评论/关注幂等流程
 NotificationWorker + Redis Pub/Sub + SSE 流程
-COS 上传流程
+OSS 上传流程
 Redis/RabbitMQ 故障降级
 ```
 
